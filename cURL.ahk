@@ -1,4 +1,100 @@
-﻿; **************************************[ Private Functions ]***************************************
+﻿; *********************************[ File Manipulation Functions ]**********************************
+
+cURL_CreateFile(sFile
+               ,tCreate="CREATE_NEW"
+               ,tAccess="GENERIC_RW"
+               ,tShare="FILE_SHARE_READ"
+               ,tFlags="FILE_ATTRIBUTE_NORMAL" ){
+
+    static st:="Create,Access,Share,Flags"
+    
+    Loop, Parse, st, `,
+    {
+        extLoopField:=a_loopfield, %extLoopField%:=0
+        Loop, Parse, t%a_loopfield%, %a_tab%%a_space%, %a_tab%%a_space%
+            %extLoopField% |= FILE(a_loopfield)
+    }
+    
+    return DllCall("CreateFile"
+                  ,"Uint" ,&sFile
+                  ,"UInt" ,Access
+                  ,"UInt" ,Share
+                  ,"UInt" ,0
+                  ,"UInt" ,Create
+                  ,"UInt" ,Flags
+                  ,"UInt" ,0)
+}
+
+cURL_ReadFile(ptr, size, nmemb, hFile){
+
+    DllCall("ReadFile"
+           ,"UInt" ,hFile
+           ,"UInt" ,ptr
+           ,"UInt" ,size*nmemb
+           ,"UInt*",tRead
+           ,"UInt" ,0)
+    
+    return tRead
+}
+
+cURL_WriteFile(ptr, size, nmemb, hFile){
+
+    DllCall("WriteFile"
+           ,"UInt" ,hFile
+           ,"UInt" ,ptr
+           ,"UInt" ,size*nmemb
+           ,"UInt*",tWritten
+           ,"UInt" ,0)
+    
+    return tWritten
+}
+
+cURL_CloseHandle(fHandle){
+
+    return DllCall("CloseHandle"
+                  ,"Uint" ,fHandle)
+}
+
+cURL_Debug(cHandle, infotype, ptr, size, void){
+    
+    global stdout
+    /*
+     * This function should be used when using the CURLOPT_VERBOSE option which sends
+     * more information than the normal curl call, i personally prefer this function
+     * most times when i dont need a file to write to.
+     * 
+     * Similarly to cURL_WriteFile, you can write your own function, make sure you register it like:
+	 * curl_easy_setopt(curl, CURLOPT_DEBUGFUNCTION, registercallback("ahk_debug", "C F")) ; register function
+     */
+    
+    if !FileExist(a_temp . "\stdout")
+        hFile := cURL_CreateFile(a_temp . "\stdout", "CREATE_ALWAYS")
+    cURL_WriteFile(ptr, size, 1, hFile)    ; Write file size is size*nmemb... so we use 1 <<
+    cURL_CloseHandle(hFile)
+    
+    FileRead, stdout, %a_temp%\stdout       ; Read temporary file to stdout so we can use the var later on
+    return 0
+}
+
+Curl_ProgressFunction( clientp, dltotal_l, dltotal_h, dlnow_l
+                      ,dlnow_h, ultotal_l, ultotal_h, ulnow_l, ulnow_h){
+
+    ; Function created by DeathByNukes, http://www.autohotkey.com/forum/topic32019.html
+    VarSetCapacity(dltotal, 8, 0)
+    NumPut(dltotal_l, dltotal, 0), NumPut(dltotal_h, dltotal, 4)
+
+    VarSetCapacity(dlnow, 8, 0)
+    NumPut(dlnow_l, dlnow, 0), NumPut(dlnow_h, dlnow, 4)
+
+    KBTotal := Round((NumGet(dltotal, 0, "Double") / 1024), 2)
+    KBNow := Round((NumGet(dlnow, 0, "Double") / 1024), 2)
+    Percent := Round((NumGet(dlnow, 0, "Double") / NumGet(dltotal, 0, "Double") * 100), 2)
+    Progress, %Percent%, %KBNow% of %KBTotal% KB (%Percent% `%)
+
+    Return 0
+}
+
+; **************************************[ Private Functions ]***************************************
 
 CURL(var, val=""){
     static
