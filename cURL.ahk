@@ -1,4 +1,454 @@
-﻿; **********************************[ File Management Functions ]***********************************
+﻿; Title: cURL Wrapper for AHK
+; Requires: [AHK_L 42+]
+/*
+    Function: Global_Init
+    Sets up the program environment that libcurl needs. Think of it as an extension of the library loader. 
+
+    This function must be called at least once within a program (a program is all the code that shares a memory 
+    space) before the program calls any other function in libcurl. The environment it sets up is constant for the 
+    life of the program and is the same for every program, so multiple calls have the same effect as one call.
+    
+    *This function is not thread safe.* You must not call it when any other thread in the program (i.e. a thread 
+    sharing the same memory) is running. This doesn't just mean no other thread that is using libcurl. Because 
+    *Global_Init()* calls functions of other libraries that are similarly thread unsafe, it could conflict with 
+    any other thread that uses these other libraries.
+    
+    See the description in libcurl(3) of global environment requirements for details of how to use this function. 
+    
+    See: <http://curl.haxx.se/libcurl/c/curl_global_init.html>
+    
+    Parameters: 
+    > cURL_Global_Init([DllPath, Flags])
+    
+    DllPath     -   Optional location for the libcurl.dll file. 
+                    If not specified it will be assumed to be on *a_scriptdir*.
+    Flags       -   The flags option is a bit pattern that tells libcurl exactly what features to init, as 
+                    described below. Set the desired bits by ORing the values together. 
+                    In normal operation, you must specify *CURL_GLOBAL_ALL*.
+                    Don't use any other value unless you are familiar with it and mean to control internal
+                    operations of libcurl. 
+                    Accepted Flags:
+                    - *CURL_GLOBAL_SSL*: (1<<0)
+                    
+                    - *CURL_GLOBAL_WIN32*: (1<<1)
+                    
+                    - *CURL_GLOBAL_ALL*: (CURL_GLOBAL_SSL|CURL_GLOBAL_WIN32)
+                    
+                    - *CURL_GLOBAL_NOTHING*: 0
+                    
+                    - *CURL_GLOBAL_DEFAULT*: CURL_GLOBAL_ALL
+    
+    Returns:
+    *CURLE_OK* (zero) If this function returns non-zero, something went wrong and you cannot use 
+    the other curl functions.
+*/
+cURL_Global_Init(DllPath="", Flags="CURL_GLOBAL_DEFAULT"){
+
+    global hCurlModule
+    
+    DllPath := !DllPath ? "libcurl.dll" : inStr(DllPath, "libcurl.dll") ? DllPath : DllPath "\libcurl.dll"
+	if !hCurlModule:=DllCall("LoadLibrary", "Str", DllPath)
+		return A_ThisFunc "> Could not load library: " DllPath
+    
+    ; Initialize the program environment
+	return DllCall("libcurl\curl_global_init", "UInt", CURL(Flags))
+}
+
+/*
+    Function: Global_Cleanup
+    Releases resources acquired by <Global_Init()>.
+
+    You should call *Global_Cleanup()* once for each call you make to <Global_Init()>, after you are done 
+    using libcurl.
+
+    *This function is not thread safe.* You must not call it when any other thread in the program 
+    (i.e. a thread sharing the same memory) is running. This doesn't just mean no other thread that is using
+    libcurl. Because *Global_Cleanup()* calls functions of other libraries that are similarly thread unsafe,
+    it could conflict with any other thread that uses these other libraries.
+
+    See the description in libcurl(3) of global environment requirements for details of how to use this function. 
+    
+    See: <http://curl.haxx.se/libcurl/c/curl_global_cleanup.html>
+    
+    Parameters:
+    > None
+    
+    Returns:
+    Nothing is returned by this function.
+*/
+cURL_Global_Cleanup(){
+
+    global hCurlModule
+
+    return DllCall( "FreeLibrary", "UInt", hCurlModule ), DllCall("libcurl\curl_global_cleanup")
+}
+
+/*
+    Function: Version
+    Returns the libcurl version string.
+    
+    Returns a human readable string with the version number of libcurl and some of its important components (like 
+    OpenSSL version).
+    
+    See: <http://curl.haxx.se/libcurl/c/curl_version.html>
+    
+    Parameters:
+    > None
+    
+    Returns:
+    A pointer to a zero terminated string.
+*/
+cURL_Version(){
+
+    return DllCall("libcurl\curl_version", "AStr")
+}
+
+/*
+    Function: Version_Info
+    Returns run-time libcurl version info.
+    
+    Returns a pointer to a filled in struct with information about various run-time features in libcurl. type 
+    should be set to the version of this functionality by the time you write your program. This way, libcurl will 
+    always return a proper struct that your program understands, while programs in the future might get a different 
+    struct. *CURLVERSION_NOW* will be the most recent one for the library you have installed:
+
+    > ptr := cURL_Version_Info("CURLVERSION_NOW")
+
+    Applications should use this information to judge if things are possible to do or not, instead of using 
+    compile-time checks, as dynamic/DLL libraries can be changed independent of applications.
+    
+    The curl_version_info_data struct looks like this
+    
+    (start code)    
+    typedef struct {   CURLversion age;     // see description below
+
+    // when 'age' is 0 or higher, the members below also exist:  
+    const char *version;                    // human readable string
+    unsigned int version_num;               // numeric representation
+    const char *host;                       // human readable string  
+    int features;                           // bitmask, see below
+    char *ssl_version;                      // human readable string
+    long ssl_version_num;                   // not used, always zero
+    const char *libz_version;               // human readable string
+    const char **protocols;                 // list of protocols
+
+    // when 'age' is 1 or higher, the members below also exist:
+    const char *ares;                       // human readable string
+    int ares_num;                           // number
+
+    // when 'age' is 2 or higher, the member below also exists:
+    const char *libidn;                     // human readable string
+
+    // when 'age' is 3 or higher, the members below also exist:
+    int iconv_ver_num;                      // '_libiconv_version' if iconv support enabled
+
+    const char *libssh_version;             // human readable string
+
+    } curl_version_info_data;
+    (end)
+    
+    age - describes what the age of this struct is. The number depends on how new the libcurl you're using is. You 
+    are however guaranteed to get a struct that you have a matching struct for in the header, as you tell libcurl 
+    your "age" with the vAge argument.
+
+    version - is just an ascii string for the libcurl version.
+
+    version_num - is a 24 bit number created like this: <8 bits major number> | <8 bits minor number> | <8 bits 
+    patch number>. Version 7.9.8 is therefore returned as 0x070908.
+
+    host - is an ascii string showing what host information that this libcurl was built for. As discovered by a 
+    configure script or set by the build environment.
+
+    features - can have none, one or more bits set, and the currently defined bits are:
+
+                    - *CURL_VERSION_IPV6*: supports IPv6
+
+                    - *CURL_VERSION_KERBEROS4*: supports kerberos4 (when using FTP)
+
+                    - *CURL_VERSION_SSL*: supports SSL (HTTPS/FTPS) (Added in 7.10)
+
+                    - *CURL_VERSION_LIBZ*: supports HTTP deflate using libz (Added in 7.10)
+
+                    - *CURL_VERSION_NTLM*: supports HTTP NTLM (added in 7.10.6)
+
+                    - *CURL_VERSION_GSSNEGOTIATE*: supports HTTP GSS-Negotiate (added in 7.10.6)
+
+                    - *CURL_VERSION_DEBUG*: libcurl was built with debug capabilities (added in 7.10.6)
+
+                    - *CURL_VERSION_CURLDEBUG*: libcurl was built with memory tracking debug capabilities. This is 
+                    mainly of interest for libcurl hackers. (added in 7.19.6)
+
+                    - *CURL_VERSION_ASYNCHDNS*: libcurl was built with support for asynchronous name lookups, which
+                     allows more exact timeouts (even on Windows) and less blocking when using the multi interface.
+                     (added in 7.10.7)
+
+                    - *CURL_VERSION_SPNEGO*: libcurl was built with support for SPNEGO authentication (Simple and 
+                    Protected GSS-API Negotiation Mechanism, defined in RFC 2478.) (added in 7.10.8)
+
+                    - *CURL_VERSION_LARGEFILE*: libcurl was built with support for large files. (Added in 7.11.1)
+
+                    - *CURL_VERSION_IDN*: libcurl was built with support for IDNA, domain names with international 
+                    letters. (Added in 7.12.0)
+
+                    - *CURL_VERSION_SSPI*: libcurl was built with support for SSPI. This is only available on 
+                    Windows and makes libcurl use Windows-provided functions for NTLM authentication. It also 
+                    allows libcurl to use the current user and the current user's password without the app having 
+                    to pass them on. (Added in 7.13.2)
+
+                    - *CURL_VERSION_CONV*: libcurl was built with support for character conversions, as provided by
+                    the CURLOPT_CONV_* callbacks. (Added in 7.15.4)
+
+    ssl_version - is an ASCII string for the OpenSSL version used. If libcurl has no SSL support, this is *NULL*.
+
+    ssl_version_num - is the numerical OpenSSL version value as defined by the OpenSSL project. If libcurl has no 
+    SSL support, this is 0.
+
+    libz_version - is an ASCII string (there is no numerical version). If libcurl has no libz support, this is *NULL*.
+
+    protocols - is a pointer to an array of char * pointers, containing the names protocols that libcurl supports (
+    using lowercase letters). The protocol names are the same as would be used in URLs. The array is terminated by 
+    a *NULL* entry.
+    
+    Returns:
+    A pointer to a curl_version_info_data struct.
+*/
+cURL_Version_Info(vAge){
+    
+    return DllCall("libcurl\curl_version_info", "UInt", CURL(vAge))
+}
+
+/* not working
+    Function: FormAdd
+    Add a section to a multipart/formdata HTTP POST.
+    
+    This function is used to append sections when building a multipart/formdata HTTP POST (referred to 
+    as RFC2388-style posts). Append one section at a time until you've added all the sections you want included 
+    and then you pass the fpost pointer as parameter to *CURLOPT_HTTPPOST*. lpost is set after each call and 
+    on repeated invokes it should be left as set to allow repeated invokes to find the end of the list faster.
+
+    After the lpost pointer follow the real arguments.
+
+    All  list-data will be allocated by the function itself. You must call <FormFree()> after the form post 
+    has been done to free the resources.
+
+    Using POST with HTTP 1.1 implies the use of a "Expect: 100-continue" header. You can disable this header with 
+    *CURLOPT_HTTPHEADER* as usual.
+
+    First, there are some basics you need to understand about multipart/formdata posts. Each part consists of at 
+    least a NAME and a CONTENTS part. If the part is made for file upload, there are also a stored CONTENT-TYPE 
+    and a FILENAME. We'll discuss in the link below, what options you use to set these properties in the parts you 
+    want to add to your post: <http://curl.haxx.se/libcurl/c/curl_formadd.html>
+
+    The options listed first are for making normal parts. The options from *CURLFORM_FILE* through 
+    *CURLFORM_BUFFERLENGTH* are for file upload parts.
+    
+    The last parameter of each call of this function must be *CURLFORM_END*.
+    
+    Parameters:
+    > cURL_FormAdd(fpost, lpost, params)
+    
+    fpost   -   Empty variable that will be filled with the info passed in params.
+    lpost   -   Empty variable that is also filled automatically by libcurl.
+    params  -   Actual list of parameters that will be passed to this function. Please read the link above  
+                carefully and check the examples provided to get an idea of how to create multipart/formdata
+                lists with this function.
+    
+    Returns:
+    *CURLE_OK* (zero) means everything was ok, non-zero means an error occurred corresponding to a *CURL_FORMADD_**
+    constant defined in <curl/curl.h>
+*/
+cURL_FormAdd(Byref fPost, Byref lPost, Params){
+    
+    `(!fpost || !lpost) ? (VarSetCapacity(fpost, 4, 0), VarSetCapacity(lpost, 4, 0))
+    Loop, parse, params, `,
+        mod(a_index, 2) ? Fopt%a_index%:=CURL(a_loopfield) : Fval%a_index%:=a_loopfield
+    
+    return DllCall("libcurl\curl_formadd"
+                  ,"UInt*",fpost
+                  ,"UInt*",lpost
+                  ,"UInt" ,%Fopt1% ,"Str" ,Fval2
+                  ,"UInt" ,%Fopt3% ,"Str" ,Fval4
+                  ,"UInt" ,%Fopt5% ,"Str" ,Fval6
+                  ,"UInt" ,%Fopt7% ,"Str" ,Fval8
+                  ,"UInt" ,%Fopt9% ,"Str" ,Fval10, CDecl)
+    
+}
+
+/*
+    Function: FormFree
+    Free a previously build multipart/formdata HTTP POST chain.
+    
+    Used to clean up data previously built/appended with <FormAdd()>. This must be called 
+    when the data has been used, which typically means after <Easy_Perform()> has been called. 
+    
+    See: <http://curl.haxx.se/libcurl/c/curl_formfree.html>
+    
+    Parameters:
+    cURL_FormFree(fPost)
+    
+    fPost   -   Variable filled with a multipart/formdata list created with <FormAdd()>
+    
+    Returns:
+    Nothing is returned by this function.
+*/
+cURL_FormFree(Byref fPost){
+    
+    return DllCall("libcurl\curl_formfree", "UInt*", fPost, "Cdecl")
+}
+
+/*
+    Function: Free
+    Reclaims memory that has been obtained through a libcurl call.
+    
+    See: <http://curl.haxx.se/libcurl/c/curl_free.html>
+    
+    Parameters:
+    > cURL_Free(pStr)
+    
+    Returns:
+    Nothing is returned by this function.
+*/
+cURL_Free(Byref pStr){
+
+    return DllCall("libcurl\curl_free", "UInt*", pStr, "Cdecl")
+}
+
+/*
+    Function: GetDate
+    Convert a date string to number of seconds since January 1, 1970.
+    
+    This function returns the number of seconds since January 1st 1970 in the UTC time zone, for the date and time 
+    that the datestring parameter specifies. The now parameter is not used, pass a *NULL* there.
+
+    *NOTE:* This function was rewritten for the 7.12.2 release and this documentation covers the functionality of 
+    the new one. The new one is not feature-complete with the old one, but most of the formats supported by the new 
+    one was supported by the old too.
+    
+    See: <http://curl.haxx.se/libcurl/c/curl_getdate.html>
+    
+    Parameters:
+    > cURL_GetDate(Date)
+    
+    Date    -   A "date" is a string containing several items separated by whitespace. The order of the items is 
+                immaterial. A date string may contain many flavors of items:
+
+    - *Calendar Date items* Can be specified several ways. Month names can only be three-letter english 
+      abbreviations, numbers can be zero-prefixed and the year may use 2 or 4 digits. Examples: 06 Nov 1994, 
+      06-Nov-94 and Nov-94 6.
+
+    - *Time of the day items* This string specifies the time on a given day. You must specify it with 6 digits 
+      with two colons: HH:MM:SS. To not include the time in a date string, will make the function assume 00:00:00. 
+      Example: 18:19:21.
+
+    - *Time Zone items* Specifies international time zone. There are a few acronyms supported, but in general you 
+      should instead use the specific relative time compared to UTC. Supported formats include: -1200, MST, +0100.
+
+    - *Day of the week items* Specifies a day of the week. Days of the week may be spelled out in full 
+      (using english): `Sunday', `Monday', etc or they may be abbreviated to their first three letters. This is 
+      usually not info that adds anything.
+
+    - *Pure numbers* If a decimal number of the form YYYYMMDD appears, then YYYY is read as the year, MM as the 
+      month number and DD as the day of the month, for the specified calendar date.
+      
+    Returns:
+    This function returns -1 when it fails to parse the date string. Otherwise it returns the number of seconds as 
+    described.
+
+    If the year is larger than 2037 on systems with 32 bit time_t, this function will return 0x7fffffff (since 
+    that is the largest possible signed 32 bit number).
+
+    Having a 64 bit time_t is not a guarantee that dates beyond 03:14:07 UTC, January 19, 2038 will work fine. On 
+    systems with a 64 bit time_t but with a crippled mktime(), curl_getdate will return -1 in this case.
+    
+    Examples:
+    (start code)
+    Sun, 06 Nov 1994 08:49:37 GMT
+    Sunday, 06-Nov-94 08:49:37 GMT
+    Sun Nov  6 08:49:37 1994
+    06 Nov 1994 08:49:37 GMT
+    06-Nov-94 08:49:37 GMT
+    Nov  6 08:49:37 1994
+    06 Nov 1994 08:49:37
+    06-Nov-94 08:49:37
+    1994 Nov 6 08:49:37
+    GMT 08:49:37 06-Nov-94 Sunday
+    94 6 Nov 08:49:37
+    1994 Nov 6
+    06-Nov-94
+    Sun Nov 6 94
+    1994.Nov.6
+    Sun/Nov/6/94/GMT
+    Sun, 06 Nov 1994 08:49:37 CET
+    06 Nov 1994 08:49:37 EST
+    Sun, 12 Sep 2004 15:05:58 -0700
+    Sat, 11 Sep 2004 21:32:11 +0200
+    20040912 15:05:58 -0700
+    20040911 +0200
+    (end)
+
+    Additional Notes:
+    - This parser was written to handle date formats specified in RFC 822 (including the update in RFC 1123) using 
+    time zone name or time zone delta and RFC 850 (obsoleted by RFC 1036) and ANSI C's asctime() format. 
+    These formats are the only ones RFC2616 says HTTP applications may use. 
+    
+    - The former version of this function was built with yacc and was not only very large, it was also never quite 
+    understood and it wasn't possible to build with non-GNU tools since only GNU Bison could make it thread-safe!.
+    The rewrite was done for 7.12.2. The new one is much smaller and uses simpler code. 
+*/
+cURL_GetDate(Date){
+    
+    a_isunicode ? (VarSetCapacity(DateA, StrPut(Date, "CP0")), StrPut(Date, &DateA, "CP0"))
+    return DllCall("libcurl\curl_getdate", "Str", a_isunicode ? DateA : Date, "UInt", 0)
+}
+
+/*
+    Function: sList_Append
+    Add a string to a slist.
+    
+    *sList_Append()* appends a specified string to a linked list of strings. The existing list should be passed as 
+    the first argument while the new list is returned from this function. The specified string has been appended 
+    when this function returns. *sList_Append()* copies the string.
+
+    The list should be freed again (after usage) with <sList_Free_All()>.
+    
+    See: <http://curl.haxx.se/libcurl/c/curl_slist_append.html>
+    
+    Parameters:
+    > cURL_sList_Append(pList, pStr)
+    
+    pList   -   Variable that will contain the list.
+    Str     -   String to be appended to the list.
+    
+    Returns:
+    A *NULL* pointer is returned if anything went wrong, otherwise the new list pointer is returned.
+*/
+cURL_sList_Append(Byref pList, Byref pStr){
+    
+    pList ? : pList:=0
+    return DllCall("libcurl\curl_slist_append", "UInt*", pList, "UInt*", pStr, "Cdecl")
+}
+
+/*
+    Function: sList_Free_All
+    Free an entire curl_slist list.
+    
+    *sList_Free_All()* removes all traces of a previously built curl_slist linked list.
+    
+    See: <http://curl.haxx.se/libcurl/c/curl_slist_free_all.html>
+    
+    Parameters:
+    > cURL_sList_Free_All(pList)
+    pList   -   Variable that contains the list.
+    
+    Returns:
+    Nothing is returned by this function.
+*/
+cURL_sList_Free_All(Byref pList){
+    
+    return DllCall("libcurl\curl_slist_free_all", "UInt*", pList, "Cdecl")
+}
+
+; **********************************[ File Management Functions ]***********************************
 
 cURL_CreateFile( sFile
                 ,tCreate="CREATE_NEW"
