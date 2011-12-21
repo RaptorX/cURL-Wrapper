@@ -1,78 +1,79 @@
 ﻿; Title: cURL Wrapper for AHK
 ; Requires: [AHK_L 42+]
-/*
-    Function: Global_Init
-    Sets up the program environment that libcurl needs. Think of it as an extension of the library loader. 
 
-    This function must be called at least once within a program (a program is all the code that shares a memory 
-    space) before the program calls any other function in libcurl. The environment it sets up is constant for the 
+/*ƒ
+    Function: Global_Init
+    Sets up the program environment that libcurl needs. Think of it as an extension of the library loader.
+
+    This function must be called at least once within a program (a program is all the code that shares a memory
+    space) before the program calls any other function in libcurl. The environment it sets up is constant for the
     life of the program and is the same for every program, so multiple calls have the same effect as one call.
-    
-    *This function is not thread safe.* You must not call it when any other thread in the program (i.e. a thread 
-    sharing the same memory) is running. This doesn't just mean no other thread that is using libcurl. Because 
-    *Global_Init()* calls functions of other libraries that are similarly thread unsafe, it could conflict with 
+
+    *This function is not thread safe.* You must not call it when any other thread in the program (i.e. a thread
+    sharing the same memory) is running. This doesn't just mean no other thread that is using libcurl. Because
+    *Global_Init()* calls functions of other libraries that are similarly thread unsafe, it could conflict with
     any other thread that uses these other libraries.
-    
-    See the description in libcurl(3) of global environment requirements for details of how to use this function. 
-    
+
+    See the description in libcurl(3) of global environment requirements for details of how to use this function.
+
     See: <http://curl.haxx.se/libcurl/c/curl_global_init.html>
-    
-    Parameters: 
+
+    Parameters:
     > cURL_Global_Init([DllPath, Flags])
-    
-    DllPath     -   Optional location for the libcurl.dll file. 
+
+    DllPath     -   Optional location for the libcurl.dll file.
                     If not specified it will be assumed to be on *a_scriptdir*.
-    Flags       -   The flags option is a bit pattern that tells libcurl exactly what features to init, as 
-                    described below. Set the desired bits by ORing the values together. 
+    Flags       -   The flags option is a bit pattern that tells libcurl exactly what features to init, as
+                    described below. Set the desired bits by ORing the values together.
                     In normal operation, you must specify *CURL_GLOBAL_ALL*.
                     Don't use any other value unless you are familiar with it and mean to control internal
-                    operations of libcurl. 
+                    operations of libcurl.
                     Accepted Flags:
                     - *CURL_GLOBAL_SSL*: (1<<0)
-                    
+
                     - *CURL_GLOBAL_WIN32*: (1<<1)
-                    
+
                     - *CURL_GLOBAL_ALL*: (CURL_GLOBAL_SSL|CURL_GLOBAL_WIN32)
-                    
+
                     - *CURL_GLOBAL_NOTHING*: 0
-                    
+
                     - *CURL_GLOBAL_DEFAULT*: CURL_GLOBAL_ALL
-    
+
     Returns:
-    *CURLE_OK* (zero) If this function returns non-zero, something went wrong and you cannot use 
+    *CURLE_OK* (zero) If this function returns non-zero, something went wrong and you cannot use
     the other curl functions.
 */
 cURL_Global_Init(DllPath="", Flags="CURL_GLOBAL_DEFAULT"){
 
     global hCurlModule
-    
+
     DllPath := !DllPath ? "libcurl.dll" : inStr(DllPath, "libcurl.dll") ? DllPath : DllPath "\libcurl.dll"
 	if !hCurlModule:=DllCall("LoadLibrary", "Str", DllPath)
 		return A_ThisFunc "> Could not load library: " DllPath
-    
+
     ; Initialize the program environment
-	return DllCall("libcurl\curl_global_init", "UInt", CURL(Flags))
+	return DllCall("libcurl\curl_global_init", "UInt", CURL(Flags), "CDecl")
 }
 
-/*
+/*ƒ
     Function: Global_Cleanup
     Releases resources acquired by <Global_Init()>.
 
-    You should call *Global_Cleanup()* once for each call you make to <Global_Init()>, after you are done 
+    You should call *Global_Cleanup()* once for each call you make to <Global_Init()>, after you are done
     using libcurl.
 
-    *This function is not thread safe.* You must not call it when any other thread in the program 
+    *This function is not thread safe.* You must not call it when any other thread in the program
     (i.e. a thread sharing the same memory) is running. This doesn't just mean no other thread that is using
     libcurl. Because *Global_Cleanup()* calls functions of other libraries that are similarly thread unsafe,
     it could conflict with any other thread that uses these other libraries.
 
-    See the description in libcurl(3) of global environment requirements for details of how to use this function. 
-    
+    See the description in libcurl(3) of global environment requirements for details of how to use this function.
+
     See: <http://curl.haxx.se/libcurl/c/curl_global_cleanup.html>
-    
+
     Parameters:
     > None
-    
+
     Returns:
     Nothing is returned by this function.
 */
@@ -83,18 +84,18 @@ cURL_Global_Cleanup(){
     return DllCall( "FreeLibrary", "UInt", hCurlModule ), DllCall("libcurl\curl_global_cleanup")
 }
 
-/*
+/*ƒ
     Function: Version
     Returns the libcurl version string.
-    
-    Returns a human readable string with the version number of libcurl and some of its important components (like 
+
+    Returns a human readable string with the version number of libcurl and some of its important components (like
     OpenSSL version).
-    
+
     See: <http://curl.haxx.se/libcurl/c/curl_version.html>
-    
+
     Parameters:
     > None
-    
+
     Returns:
     A pointer to a zero terminated string.
 */
@@ -103,29 +104,29 @@ cURL_Version(){
     return DllCall("libcurl\curl_version", "AStr")
 }
 
-/*
+/*ƒ
     Function: Version_Info
     Returns run-time libcurl version info.
-    
-    Returns a pointer to a filled in struct with information about various run-time features in libcurl. type 
-    should be set to the version of this functionality by the time you write your program. This way, libcurl will 
-    always return a proper struct that your program understands, while programs in the future might get a different 
+
+    Returns a pointer to a filled in struct with information about various run-time features in libcurl. type
+    should be set to the version of this functionality by the time you write your program. This way, libcurl will
+    always return a proper struct that your program understands, while programs in the future might get a different
     struct. *CURLVERSION_NOW* will be the most recent one for the library you have installed:
 
     > ptr := cURL_Version_Info("CURLVERSION_NOW")
 
-    Applications should use this information to judge if things are possible to do or not, instead of using 
+    Applications should use this information to judge if things are possible to do or not, instead of using
     compile-time checks, as dynamic/DLL libraries can be changed independent of applications.
-    
+
     The curl_version_info_data struct looks like this
-    
-    (start code)    
+
+    (start code)
     typedef struct {   CURLversion age;     // see description below
 
-    // when 'age' is 0 or higher, the members below also exist:  
+    // when 'age' is 0 or higher, the members below also exist:
     const char *version;                    // human readable string
     unsigned int version_num;               // numeric representation
-    const char *host;                       // human readable string  
+    const char *host;                       // human readable string
     int features;                           // bitmask, see below
     char *ssl_version;                      // human readable string
     long ssl_version_num;                   // not used, always zero
@@ -146,17 +147,17 @@ cURL_Version(){
 
     } curl_version_info_data;
     (end)
-    
-    age - describes what the age of this struct is. The number depends on how new the libcurl you're using is. You 
-    are however guaranteed to get a struct that you have a matching struct for in the header, as you tell libcurl 
+
+    age - describes what the age of this struct is. The number depends on how new the libcurl you're using is. You
+    are however guaranteed to get a struct that you have a matching struct for in the header, as you tell libcurl
     your "age" with the vAge argument.
 
     version - is just an ascii string for the libcurl version.
 
-    version_num - is a 24 bit number created like this: <8 bits major number> | <8 bits minor number> | <8 bits 
+    version_num - is a 24 bit number created like this: <8 bits major number> | <8 bits minor number> | <8 bits
     patch number>. Version 7.9.8 is therefore returned as 0x070908.
 
-    host - is an ascii string showing what host information that this libcurl was built for. As discovered by a 
+    host - is an ascii string showing what host information that this libcurl was built for. As discovered by a
     configure script or set by the build environment.
 
     features - can have none, one or more bits set, and the currently defined bits are:
@@ -175,24 +176,24 @@ cURL_Version(){
 
                     - *CURL_VERSION_DEBUG*: libcurl was built with debug capabilities (added in 7.10.6)
 
-                    - *CURL_VERSION_CURLDEBUG*: libcurl was built with memory tracking debug capabilities. This is 
+                    - *CURL_VERSION_CURLDEBUG*: libcurl was built with memory tracking debug capabilities. This is
                     mainly of interest for libcurl hackers. (added in 7.19.6)
 
                     - *CURL_VERSION_ASYNCHDNS*: libcurl was built with support for asynchronous name lookups, which
                      allows more exact timeouts (even on Windows) and less blocking when using the multi interface.
                      (added in 7.10.7)
 
-                    - *CURL_VERSION_SPNEGO*: libcurl was built with support for SPNEGO authentication (Simple and 
+                    - *CURL_VERSION_SPNEGO*: libcurl was built with support for SPNEGO authentication (Simple and
                     Protected GSS-API Negotiation Mechanism, defined in RFC 2478.) (added in 7.10.8)
 
                     - *CURL_VERSION_LARGEFILE*: libcurl was built with support for large files. (Added in 7.11.1)
 
-                    - *CURL_VERSION_IDN*: libcurl was built with support for IDNA, domain names with international 
+                    - *CURL_VERSION_IDN*: libcurl was built with support for IDNA, domain names with international
                     letters. (Added in 7.12.0)
 
-                    - *CURL_VERSION_SSPI*: libcurl was built with support for SSPI. This is only available on 
-                    Windows and makes libcurl use Windows-provided functions for NTLM authentication. It also 
-                    allows libcurl to use the current user and the current user's password without the app having 
+                    - *CURL_VERSION_SSPI*: libcurl was built with support for SSPI. This is only available on
+                    Windows and makes libcurl use Windows-provided functions for NTLM authentication. It also
+                    allows libcurl to use the current user and the current user's password without the app having
                     to pass them on. (Added in 7.13.2)
 
                     - *CURL_VERSION_CONV*: libcurl was built with support for character conversions, as provided by
@@ -200,69 +201,69 @@ cURL_Version(){
 
     ssl_version - is an ASCII string for the OpenSSL version used. If libcurl has no SSL support, this is *NULL*.
 
-    ssl_version_num - is the numerical OpenSSL version value as defined by the OpenSSL project. If libcurl has no 
+    ssl_version_num - is the numerical OpenSSL version value as defined by the OpenSSL project. If libcurl has no
     SSL support, this is 0.
 
     libz_version - is an ASCII string (there is no numerical version). If libcurl has no libz support, this is *NULL*.
 
     protocols - is a pointer to an array of char * pointers, containing the names protocols that libcurl supports (
-    using lowercase letters). The protocol names are the same as would be used in URLs. The array is terminated by 
+    using lowercase letters). The protocol names are the same as would be used in URLs. The array is terminated by
     a *NULL* entry.
-    
+
     Returns:
     A pointer to a curl_version_info_data struct.
 */
 cURL_Version_Info(vAge){
-    
-    return DllCall("libcurl\curl_version_info", "UInt", CURL(vAge))
+
+    return DllCall("libcurl\curl_version_info", "UInt", CURL(vAge), "CDecl")
 }
 
-/* not working
+/**
     Function: FormAdd
     Add a section to a multipart/formdata HTTP POST.
-    
-    This function is used to append sections when building a multipart/formdata HTTP POST (referred to 
-    as RFC2388-style posts). Append one section at a time until you've added all the sections you want included 
-    and then you pass the fpost pointer as parameter to *CURLOPT_HTTPPOST*. lpost is set after each call and 
+
+    This function is used to append sections when building a multipart/formdata HTTP POST (referred to
+    as RFC2388-style posts). Append one section at a time until you've added all the sections you want included
+    and then you pass the fpost pointer as parameter to *CURLOPT_HTTPPOST*. lpost is set after each call and
     on repeated invokes it should be left as set to allow repeated invokes to find the end of the list faster.
 
     After the lpost pointer follow the real arguments.
 
-    All  list-data will be allocated by the function itself. You must call <FormFree()> after the form post 
+    All  list-data will be allocated by the function itself. You must call <FormFree()> after the form post
     has been done to free the resources.
 
-    Using POST with HTTP 1.1 implies the use of a "Expect: 100-continue" header. You can disable this header with 
+    Using POST with HTTP 1.1 implies the use of a "Expect: 100-continue" header. You can disable this header with
     *CURLOPT_HTTPHEADER* as usual.
 
-    First, there are some basics you need to understand about multipart/formdata posts. Each part consists of at 
-    least a NAME and a CONTENTS part. If the part is made for file upload, there are also a stored CONTENT-TYPE 
-    and a FILENAME. We'll discuss in the link below, what options you use to set these properties in the parts you 
+    First, there are some basics you need to understand about multipart/formdata posts. Each part consists of at
+    least a NAME and a CONTENTS part. If the part is made for file upload, there are also a stored CONTENT-TYPE
+    and a FILENAME. We'll discuss in the link below, what options you use to set these properties in the parts you
     want to add to your post: <http://curl.haxx.se/libcurl/c/curl_formadd.html>
 
-    The options listed first are for making normal parts. The options from *CURLFORM_FILE* through 
+    The options listed first are for making normal parts. The options from *CURLFORM_FILE* through
     *CURLFORM_BUFFERLENGTH* are for file upload parts.
-    
+
     The last parameter of each call of this function must be *CURLFORM_END*.
-    
+
     Parameters:
     > cURL_FormAdd(fpost, lpost, params)
-    
+
     fpost   -   Empty variable that will be filled with the info passed in params.
     lpost   -   Empty variable that is also filled automatically by libcurl.
-    params  -   Actual list of parameters that will be passed to this function. Please read the link above  
+    params  -   Actual list of parameters that will be passed to this function. Please read the link above
                 carefully and check the examples provided to get an idea of how to create multipart/formdata
                 lists with this function.
-    
+
     Returns:
     *CURLE_OK* (zero) means everything was ok, non-zero means an error occurred corresponding to a *CURL_FORMADD_**
     constant defined in <curl/curl.h>
 */
 cURL_FormAdd(Byref fPost, Byref lPost, Params){
-    
+
     `(!fpost || !lpost) ? (VarSetCapacity(fpost, 4, 0), VarSetCapacity(lpost, 4, 0))
     Loop, parse, params, `,
         mod(a_index, 2) ? Fopt%a_index%:=CURL(a_loopfield) : Fval%a_index%:=a_loopfield
-    
+
     return DllCall("libcurl\curl_formadd"
                   ,"UInt*",fpost
                   ,"UInt*",lpost
@@ -271,40 +272,40 @@ cURL_FormAdd(Byref fPost, Byref lPost, Params){
                   ,"UInt" ,%Fopt5% ,"Str" ,Fval6
                   ,"UInt" ,%Fopt7% ,"Str" ,Fval8
                   ,"UInt" ,%Fopt9% ,"Str" ,Fval10, CDecl)
-    
+
 }
 
-/*
+/**
     Function: FormFree
     Free a previously build multipart/formdata HTTP POST chain.
-    
-    Used to clean up data previously built/appended with <FormAdd()>. This must be called 
-    when the data has been used, which typically means after <Easy_Perform()> has been called. 
-    
+
+    Used to clean up data previously built/appended with <FormAdd()>. This must be called
+    when the data has been used, which typically means after <Easy_Perform()> has been called.
+
     See: <http://curl.haxx.se/libcurl/c/curl_formfree.html>
-    
+
     Parameters:
     cURL_FormFree(fPost)
-    
+
     fPost   -   Variable filled with a multipart/formdata list created with <FormAdd()>
-    
+
     Returns:
     Nothing is returned by this function.
 */
 cURL_FormFree(Byref fPost){
-    
+
     return DllCall("libcurl\curl_formfree", "UInt*", fPost, "Cdecl")
 }
 
-/*
+/**
     Function: Free
     Reclaims memory that has been obtained through a libcurl call.
-    
+
     See: <http://curl.haxx.se/libcurl/c/curl_free.html>
-    
+
     Parameters:
     > cURL_Free(pStr)
-    
+
     Returns:
     Nothing is returned by this function.
 */
@@ -313,53 +314,53 @@ cURL_Free(Byref pStr){
     return DllCall("libcurl\curl_free", "UInt*", pStr, "Cdecl")
 }
 
-/*
+/*ƒ
     Function: GetDate
     Convert a date string to number of seconds since January 1, 1970.
-    
-    This function returns the number of seconds since January 1st 1970 in the UTC time zone, for the date and time 
+
+    This function returns the number of seconds since January 1st 1970 in the UTC time zone, for the date and time
     that the datestring parameter specifies. The now parameter is not used, pass a *NULL* there.
 
-    *NOTE:* This function was rewritten for the 7.12.2 release and this documentation covers the functionality of 
-    the new one. The new one is not feature-complete with the old one, but most of the formats supported by the new 
+    *NOTE:* This function was rewritten for the 7.12.2 release and this documentation covers the functionality of
+    the new one. The new one is not feature-complete with the old one, but most of the formats supported by the new
     one was supported by the old too.
-    
+
     See: <http://curl.haxx.se/libcurl/c/curl_getdate.html>
-    
+
     Parameters:
     > cURL_GetDate(Date)
-    
-    Date    -   A "date" is a string containing several items separated by whitespace. The order of the items is 
+
+    Date    -   A "date" is a string containing several items separated by whitespace. The order of the items is
                 immaterial. A date string may contain many flavors of items:
 
-    - *Calendar Date items* Can be specified several ways. Month names can only be three-letter english 
-      abbreviations, numbers can be zero-prefixed and the year may use 2 or 4 digits. Examples: 06 Nov 1994, 
+    - *Calendar Date items* Can be specified several ways. Month names can only be three-letter english
+      abbreviations, numbers can be zero-prefixed and the year may use 2 or 4 digits. Examples: 06 Nov 1994,
       06-Nov-94 and Nov-94 6.
 
-    - *Time of the day items* This string specifies the time on a given day. You must specify it with 6 digits 
-      with two colons: HH:MM:SS. To not include the time in a date string, will make the function assume 00:00:00. 
+    - *Time of the day items* This string specifies the time on a given day. You must specify it with 6 digits
+      with two colons: HH:MM:SS. To not include the time in a date string, will make the function assume 00:00:00.
       Example: 18:19:21.
 
-    - *Time Zone items* Specifies international time zone. There are a few acronyms supported, but in general you 
+    - *Time Zone items* Specifies international time zone. There are a few acronyms supported, but in general you
       should instead use the specific relative time compared to UTC. Supported formats include: -1200, MST, +0100.
 
-    - *Day of the week items* Specifies a day of the week. Days of the week may be spelled out in full 
-      (using english): `Sunday', `Monday', etc or they may be abbreviated to their first three letters. This is 
+    - *Day of the week items* Specifies a day of the week. Days of the week may be spelled out in full
+      (using english): `Sunday', `Monday', etc or they may be abbreviated to their first three letters. This is
       usually not info that adds anything.
 
-    - *Pure numbers* If a decimal number of the form YYYYMMDD appears, then YYYY is read as the year, MM as the 
+    - *Pure numbers* If a decimal number of the form YYYYMMDD appears, then YYYY is read as the year, MM as the
       month number and DD as the day of the month, for the specified calendar date.
-      
+
     Returns:
-    This function returns -1 when it fails to parse the date string. Otherwise it returns the number of seconds as 
+    This function returns -1 when it fails to parse the date string. Otherwise it returns the number of seconds as
     described.
 
-    If the year is larger than 2037 on systems with 32 bit time_t, this function will return 0x7fffffff (since 
+    If the year is larger than 2037 on systems with 32 bit time_t, this function will return 0x7fffffff (since
     that is the largest possible signed 32 bit number).
 
-    Having a 64 bit time_t is not a guarantee that dates beyond 03:14:07 UTC, January 19, 2038 will work fine. On 
+    Having a 64 bit time_t is not a guarantee that dates beyond 03:14:07 UTC, January 19, 2038 will work fine. On
     systems with a 64 bit time_t but with a crippled mktime(), curl_getdate will return -1 in this case.
-    
+
     Examples:
     (start code)
     Sun, 06 Nov 1994 08:49:37 GMT
@@ -387,84 +388,600 @@ cURL_Free(Byref pStr){
     (end)
 
     Additional Notes:
-    - This parser was written to handle date formats specified in RFC 822 (including the update in RFC 1123) using 
-    time zone name or time zone delta and RFC 850 (obsoleted by RFC 1036) and ANSI C's asctime() format. 
-    These formats are the only ones RFC2616 says HTTP applications may use. 
-    
-    - The former version of this function was built with yacc and was not only very large, it was also never quite 
+    - This parser was written to handle date formats specified in RFC 822 (including the update in RFC 1123) using
+    time zone name or time zone delta and RFC 850 (obsoleted by RFC 1036) and ANSI C's asctime() format.
+    These formats are the only ones RFC2616 says HTTP applications may use.
+
+    - The former version of this function was built with yacc and was not only very large, it was also never quite
     understood and it wasn't possible to build with non-GNU tools since only GNU Bison could make it thread-safe!.
-    The rewrite was done for 7.12.2. The new one is much smaller and uses simpler code. 
+    The rewrite was done for 7.12.2. The new one is much smaller and uses simpler code.
 */
 cURL_GetDate(Date){
-    
+
     a_isunicode ? (VarSetCapacity(DateA, StrPut(Date, "CP0")), StrPut(Date, &DateA, "CP0"))
-    return DllCall("libcurl\curl_getdate", "Str", a_isunicode ? DateA : Date, "UInt", 0)
+    return DllCall("libcurl\curl_getdate", "Str", a_isunicode ? DateA : Date, "UInt", 0, "CDecl")
 }
 
-/*
+/*ƒ
     Function: sList_Append
     Add a string to a slist.
-    
-    *sList_Append()* appends a specified string to a linked list of strings. The existing list should be passed as 
-    the first argument while the new list is returned from this function. The specified string has been appended 
+
+    *sList_Append()* appends a specified string to a linked list of strings. The existing list should be passed as
+    the first argument while the new list is returned from this function. The specified string has been appended
     when this function returns. *sList_Append()* copies the string.
 
     The list should be freed again (after usage) with <sList_Free_All()>.
-    
+
     See: <http://curl.haxx.se/libcurl/c/curl_slist_append.html>
-    
+
     Parameters:
     > cURL_sList_Append(pList, pStr)
-    
+
     pList   -   Variable that will contain the list.
     Str     -   String to be appended to the list.
-    
+
     Returns:
     A *NULL* pointer is returned if anything went wrong, otherwise the new list pointer is returned.
 */
-cURL_sList_Append(Byref pList, Byref pStr){
-    
-    pList ? : pList:=0
+cURL_sList_Append(Byref pList=0, Byref pStr=""){
+
     return DllCall("libcurl\curl_slist_append", "UInt*", pList, "UInt*", pStr, "Cdecl")
 }
 
-/*
+/*ƒ
     Function: sList_Free_All
     Free an entire curl_slist list.
-    
+
     *sList_Free_All()* removes all traces of a previously built curl_slist linked list.
-    
+
     See: <http://curl.haxx.se/libcurl/c/curl_slist_free_all.html>
-    
+
     Parameters:
     > cURL_sList_Free_All(pList)
     pList   -   Variable that contains the list.
-    
+
     Returns:
     Nothing is returned by this function.
 */
 cURL_sList_Free_All(Byref pList){
-    
+
     return DllCall("libcurl\curl_slist_free_all", "UInt*", pList, "Cdecl")
+}
+
+; Group: Easy Interface
+; *Interface for making single transfers with libcurl.*
+
+; When using libcurl's "easy" interface you init your session and get a handle (referred to as an "easy
+; handle"), which you use as input to the easy interface functions you use. Use <Easy_Init()> to get the handle.
+
+; You continue by setting all the options you want in the upcoming transfer, the most important among them is
+; the URL itself (you can't transfer anything without a specified URL as you may have figured out yourself). You
+; might want to set some callbacks as well that will be called from the library when data is available etc.
+; <Easy_SetOpt()> is used for all this.
+
+; When all is setup, you tell libcurl to perform the transfer using <Easy_Perform()>. It will then do the
+; entire operation and won't return until it is done (successfully or not).
+
+; After the transfer has been made, you can set new options and make another transfer, or if you're done,
+; cleanup the session by calling <Easy_Cleanup()>. If you want persistent connections, you don't cleanup
+; immediately, but instead run ahead and perform other transfers using the same easy handle.
+
+/*ƒ
+    Function: Easy_Init
+    Start a libcurl easy session.
+
+    Must be the first function called after <Global_Init()>. It returns a handle that
+    you must use as input to other easy-functions.
+
+    *Easy_Init()* initializes curl and this call *MUST* have a corresponding
+    call to <Easy_Cleanup()> when the operation is complete.
+
+    If you did not already call <Global_Init()>, *Easy_Init()* does it automatically. This may be lethal in
+    multi-threaded cases, since <Global_Init()> is not thread-safe, and it may result in resource
+    problems because there is no corresponding cleanup.
+
+    You are strongly advised to *not allow* this automatic behaviour, by calling <Global_Init()>
+    yourself properly.
+
+    See the description in libcurl(3) of global environment requirements for details of how to use this function.
+
+    See: <http://curl.haxx.se/libcurl/c/curl_easy_init.html>
+
+    Parameters:
+    > None
+
+    Returns:
+    cHandle     -   CURL handle.
+
+    If this function returns *NULL*, something went wrong and you cannot use the other curl functions.
+*/
+cURL_Easy_Init(){
+
+    return DllCall("libcurl\curl_easy_init")
+}
+
+/*ƒ
+    Function: Easy_Cleanup
+    End a libcurl easy session.
+
+    This function must be the last function to call for an easy session. It is the opposite of the
+    <Easy_Init()> function and must be called with the same handle as input that the <Easy_Init()> call
+    returned.
+
+    This will effectively close all connections this handle has used and possibly has kept open until now. Don't
+    call this function if you intend to transfer more files.
+
+    Any uses of the handle after this function has been called are illegal. This kills the handle and all memory
+    associated with it!
+
+    With libcurl versions prior to 7.17: when you've called this, you can safely remove all the strings you've
+    previously told libcurl to use, as it won't use them anymore now.
+
+    See: <http://curl.haxx.se/libcurl/c/curl_easy_cleanup.html>
+
+    Parameters:
+    > cURL_Easy_Cleanup(cHandle)
+
+    cHandle     -   CURL handle.
+
+    Returns:
+    Nothing is returned by this function.
+*/
+cURL_Easy_Cleanup(cHandle){
+
+    return DllCall("libcurl\curl_easy_cleanup", "UInt", cHandle, "CDecl")
+}
+
+/*ƒ
+    Function: Easy_DupHandle
+    Clone a libcurl session handle.
+
+    Returns a new curl handle, a duplicate, using all the options previously set in the input
+    curl handle. Both handles can subsequently be used independently and they must both be freed with
+    <Easy_Cleanup()>.
+
+    All strings that the input handle has been told to point to (as opposed to copy) with previous calls to
+    <Easy_SetOpt()> using char * inputs, will be pointed to by the new handle as well. You must therefore make
+    sure to keep the data around until both handles have been cleaned up.
+
+    The new handle will not inherit any state information, no connections, no SSL sessions and no cookies.
+
+    Note that even in multi-threaded programs, this function must be called in a synchronous way, the input handle
+    may not be in use when cloned.
+
+    See: <http://curl.haxx.se/libcurl/c/curl_easy_duphandle.html>
+
+    Parameters:
+    > cURL_Easy_DupHandle(cHandle)
+
+    cHandle     -   CURL handle.
+
+    Returns:
+    If this function returns *NULL*, something went wrong and you cannot use the other curl functions.
+*/
+cURL_Easy_DupHandle(cHandle){
+
+    return DllCall("libcurl\curl_easy_duphandle", "UInt", cHandle, "CDecl")
+}
+
+/*ƒ
+    Function: Easy_SetOpt
+    Set options for a curl easy handle.
+
+    *Easy_SetOpt()* is used to tell libcurl how to behave. By using the appropriate options to
+    *Easy_SetOpt()*, you can change libcurl's behavior. All options are set with the option followed by a
+    parameter. That parameter can be a long, a function pointer, an object pointer or a curl_off_t, depending on
+    what the specific option expects. Read this manual carefully as bad input values
+    may cause libcurl to behave badly!
+
+    You can only set one option in each function call. A typical application uses many *Easy_SetOpt()*
+    calls in the setup phase.
+
+    Options set with this function call are valid for all forthcoming transfers performed using this handle. The
+    options are not in any way reset between transfers, so if you want subsequent transfers with different
+    options, you must change them between the transfers. You can optionally reset all options back to internal
+    default with <Easy_Reset()>.
+
+    Strings passed to libcurl as 'char *' arguments, are copied by the library; thus the string storage associated
+    to the pointer argument may be overwritten after *Easy_SetOpt()* returns. Exceptions to this rule are
+    described in the option details found on the link below.
+
+    Before version 7.17.0, strings were not copied. Instead the user was forced keep them available until libcurl
+    no longer needed them.
+
+    The handle is the return code from a <Easy_Init()> or <Easy_DupHandle()> call.
+
+    See: <http://curl.haxx.se/libcurl/c/curl_easy_setopt.html>
+
+    Parameters:
+    > cURL_Easy_SetOpt(cHandle, Option, Param)
+
+    cHandle     -   CURL handle.
+    Option      -   A string containing a valid option name. the full list is in the documentation link above.
+                    Read each option *carefully* since bad parameters might cause undesired effects.
+    Param       -   A parameter for the specified option.
+
+    Returns:
+    *CURLE_OK* (zero) means that the option was set properly, non-zero means an error occurred as <curl/curl.h>
+    defines. See the libcurl-errors(3) man page for the full list with descriptions.
+
+    If you try to set an option that libcurl doesn't know about, perhaps because the library is too old to support
+    it or the option was removed in a recent version, this function will return *CURLE_FAILED_INIT*.
+
+    Examples:
+    > cURL_Easy_SetOpt(cHandle, "CURLOPT_URL", "www.google.com")
+    > cURL_Easy_SetOpt(cHandle, "CURLOPT_VERBOSE", True)
+*/
+cURL_Easy_SetOpt(cHandle, Option, Param){
+
+        a_isunicode ? (VarSetCapacity(ParamA, StrPut(Param, "CP0")), StrPut(Param, &ParamA, "CP0"))
+        return DllCall("libcurl\curl_easy_setopt"
+                      ,"UInt" ,cHandle
+                      ,"UInt" ,CURL(Option)
+                      ,Param+0 ? "UInt" : "Str",(a_isunicode && Param+0="") ? ParamA : Param, "CDecl")
+}
+
+/*ƒ
+    Function: Easy_Perform
+    Perform a file transfer.
+
+    This function is called after the init and all the <Easy_SetOpt()> calls are made, and will perform the
+    transfer as described in the options. It must be called with the same handle as input as the <Easy_Init()>
+    call returned.
+
+    You can do any amount of calls to *Easy_Perform()* while using the same handle. If you intend to transfer
+    more than one file, you are even encouraged to do so. libcurl will then attempt to re-use the same connection
+    for the following transfers, thus making the operations faster, less CPU intense and using less network
+    resources. Just  note that you will have to use <Easy_SetOpt()> between the invokes to set options for the
+    following *Easy_Perform()*.
+
+    You must never call this function simultaneously from two places using the same handle. Let the function return
+    first before invoking it another time. If you want parallel transfers, you must use several curl handles.
+
+    See: <http://curl.haxx.se/libcurl/c/curl_easy_perform.html>
+
+    Parameters:
+    > cURL_Easy_Perform(cHandle)
+
+    cHandle     -   CURL handle.
+
+    Returns:
+    If *CURLE_OK* (zero) was returned then it means everything was ok.
+    Non-zero means an error occurred as <curl/curl.h> defines.
+    If the *CURLOPT_ERRORBUFFER* was set with curl_easy_setopt there will be a readable error message
+    in the error buffer when non-zero is returned.
+*/
+cURL_Easy_Perform(cHandle){
+
+    return DllCall("libcurl\curl_easy_perform", "UInt", cHandle, "CDecl")
+}
+
+/*ƒ
+    Function: Easy_GetInfo
+    Extract information from a curl handle.
+
+    Request internal information from the curl session with this function. The data pointed-to can be relied upon
+    only if the function returns *CURLE_OK* (zero). Use this function *after* a performed transfer if you want to
+    get transfer-oriented data.
+
+    You should not free the memory returned by this function unless it is explicitly mentioned in the link below.
+
+    See: <http://curl.haxx.se/libcurl/c/curl_easy_getinfo.html>
+
+    Parameters:
+    > cURL_Easy_GetInfo(cHandle, Info, Byref Var)
+
+    cHandle     -   CURL handle.
+    Info        -   One of the available options shown in the original documentation link above.
+    Var         -   An empty variable that will be filled in with the internal information from the curl session
+                    being queried.
+
+    Returns:
+    If the operation was successful, *CURLE_OK* (zero) is returned.
+    Otherwise an appropriate error code will be returned.
+*/
+cURL_Easy_GetInfo(cHandle, Info, Byref Var){
+
+    VarSetCapacity(Var, (CURL(Info) > 0x300000 && CURL(Info) < 0x400000) ? 8 : 4)
+    if CURLE_OK:=DllCall("libcurl\curl_easy_getinfo", "UInt", cHandle, "UInt", CURL(Info), "UInt*", Var, "Cdecl")
+		return CURLE_OK
+
+    CURL(Info) < CURL("CURLINFO_LONG") ? var:=strGet(var, "CP0")    
+}
+
+/*
+    Function: Easy_Send
+    Rends raw data over an "easy" connection.
+
+    This function sends arbitrary data over the established connection. You may use it together with
+    <Easy_Recv()> to implement custom protocols using libcurl. This functionality can be particularly useful
+    if you use proxies and/or SSL encryption: libcurl will take care of proxy negotiation and connection set-up.
+
+    To establish the connection, set *CURLOPT_CONNECT_ONLY* option before calling <Easy_Perform()>. Note that
+    *Easy_Send()* will not work on connections that were created without this option.
+
+    You must ensure that the socket is writable before calling *Easy_Send()*, otherwise the call will return
+    *CURLE_AGAIN* (81) - the socket is used in non-blocking mode internally. Use <Easy_GetInfo()> with
+    *CURLINFO_LASTSOCKET* to obtain the socket; use your operating system facilities like select(2) to check if it
+    can be written to.
+
+    See: <http://curl.haxx.se/libcurl/c/curl_easy_send.html>
+
+    Parameters:
+    > cURL_Easy_Send(cHandle, Buffer, BufLen, SentBytes)
+
+    cHandle     -   CURL handle.
+    Buffer      -   Variable containing the data of size BufLen that will be sent.
+    BufLen      -   Is the size of the buffer that will be sent.
+    RecvBytes   -   A variable that will receive the number of sent bytes.
+
+    Returns:
+    On success, returns *CURLE_OK* (zero) and stores the number of bytes actually sent into *n.
+    Note that this may very well be less than the amount you wanted to send.
+
+    On failure, returns the appropriate error code.
+
+    Availability:
+    Added in 7.18.2.
+*/
+cURL_Easy_Send(cHandle, Byref Buffer, BufLen, Byref SentBytes){
+
+    VarSetCapacity(SentBytes, Buflen+1)
+    return DllCall("libcurl\curl_easy_send"
+                  ,"UInt" ,cHandle
+                  ,"UInt*",Buffer
+                  ,"UInt" ,BufLen
+                  ,"UInt*",SentBytes, "CDecl"), SentBytes:=Numget(SentBytes)
+}
+
+/*
+    Function: Easy_Recv
+    Receives raw data on an "easy" connection.
+
+    This function receives raw data from the established connection. You may use it together with
+    <Easy_Send()> to implement custom protocols using libcurl. This functionality can be particularly useful
+    if you use proxies and/or SSL encryption: libcurl will take care of proxy negotiation and connection set-up.
+
+    To establish the connection, set *CURLOPT_CONNECT_ONLY* option before calling <Easy_Perform()>. Note that
+    *Easy_Recv()* does not work on connections that were created without this option.
+
+    You must ensure that the socket has data to read before calling *Easy_Recv()*, otherwise the call will
+    return *CURLE_AGAIN* (81) - the socket is used in non-blocking mode internally. Use <Easy_GetInfo()> with
+    *CURLINFO_LASTSOCKET* to obtain the socket; use your operating system facilities like select(2) to check if it
+    has any data you can read.
+
+    See: <http://curl.haxx.se/libcurl/c/curl_easy_recv.html>
+
+    Parameters:
+    > cURL_Easy_Recv(cHandle, Buffer, BufLen, RecvBytes)
+
+    cHandle     -   CURL handle.
+    Buffer      -   An empty variable that will get the received data.
+    BufLen      -   Is the maximum amount of data you can get in that buffer.
+    RecvBytes   -   A variable that will receive the number of received bytes.
+
+    Returns:
+    On success, returns *CURLE_OK* (zero), stores the received data into Buffer, and the number of bytes it actually read into RecvBytes.
+
+    On failure, returns the appropriate error code.
+
+    If there is no data to read, the function returns *CURLE_AGAIN* (81). Use your operating system facilities to
+    wait until the data is ready, and retry.
+
+    Availability:
+    Added in 7.18.2.
+*/
+cURL_Easy_Recv(cHandle, Byref Buffer, BufLen, Byref RecvBytes){
+
+    VarSetCapacity(Buffer, Buflen+1), VarSetCapacity(RecvBytes, Buflen+1)
+    return DllCall("libcurl\curl_easy_recv"
+                  ,"UInt" ,cHandle
+                  ,"UInt*",Buffer
+                  ,"UInt" ,BufLen
+                  ,"UInt*",RecvBytes, "CDecl"), RecvBytes:=NumGet(RecvBytes)
+}
+
+/*
+    Function: Easy_Pause
+    Pause and unpause a connection.
+
+    Using this function, you can explicitly mark a running connection to get paused or unpaused.
+
+    A connection can be paused by using this function or by letting the read or the write callbacks return the
+    proper magic return code(*CURL_READFUNC_PAUSE* and *CURL_WRITEFUNC_PAUSE*). A write callback that returns pause
+    signals to the library that it couldn't take care of any data at all, and that data will then be delivered
+    again to the callback when the writing is later unpaused.
+
+    When this function is called to unpause reading, the chance is high that you will get your write callback
+    called before this function returns.
+
+    *NOTE*: while it may feel tempting, take care and notice that you cannot call this function from another thread.
+
+    See: <http://curl.haxx.se/libcurl/c/curl_easy_pause.html>
+
+    Parameters:
+    > cURL_Easy_Pause(cHandle, BitMask)
+
+    cHandle     -   CURL handle.
+    BitMask     -   This argument is a set of bits that sets the new state of the connection.
+                    The following bits can be used:
+                    - *CURLPAUSE_RECV*: Pause _receiving_ data.
+                      There will be no data received on this connection until this function
+                      is called again without this bit set. Thus, the write callback (CURLOPT_WRITEFUNCTION) won't
+                      be called.
+
+                    - *CURLPAUSE_SEND*: Pause _sending_ data. There will be no data sent on this connection until
+                      this function is called again without this bit set. Thus, the read callback
+                      (CURLOPT_READFUNCTION) won't be called.
+
+                    - *CURLPAUSE_ALL*: Convenience define that pauses both directions.
+
+                    - *CURLPAUSE_CONT*: Convenience define that unpauses both directions.
+
+    Returns:
+    *CURLE_OK* (zero) means that the option was set properly, and a non-zero return code means something wrong
+    occurred after the new state was set as <curl/curl.h> defines.
+    See the libcurl-errors(3) man page for the full list with descriptions.
+
+    Availability:
+    This function was added in libcurl 7.18.0. Before this version, there was no explicit support for pausing
+    transfers.
+
+    Memory Use:
+    When pausing a read by returning the magic return code from a write callback, the read data is already in
+    libcurl's internal buffers so it'll have to keep it in an allocated buffer until the reading is again unpaused
+    using this function.
+
+    If the downloaded data is compressed and is asked to get uncompressed automatically on download, libcurl will
+    continue to uncompress the entire downloaded chunk and it will cache the data uncompressed. This has the side-
+    effect that if you download something that is compressed a lot, it can result in a very large data
+    amount needing to be allocated to save the data during the pause. This said, you should probably consider not
+    using paused reading if you allow libcurl to uncompress data automatically.
+*/
+cURL_Easy_Pause(cHandle, BitMask){
+
+    return DllCall("libcurl\curl_easy_pause", "UInt", cHandle, "Uint", CURL(BitMask), "CDecl")
+}
+
+/*ƒ
+    Function: Easy_Reset
+    Reset all options of a libcurl session handle.
+
+    Re-initializes all options previously set on a specified CURL handle to the default values. This puts back the
+    handle to the same state as it was in when it was just created with <Easy_Init()>.
+
+    It does not change the following information kept in the handle: live connections, the Session ID cache, the
+    DNS cache, the cookies and shares.
+
+    See: <http://curl.haxx.se/libcurl/c/curl_easy_reset.html>
+
+    Parameters:
+    > cURL_Easy_Reset(cHandle)
+
+    cHandle     -   CURL handle.
+
+    Returns:
+    Nothing is returned by this function.
+*/
+cURL_Easy_Reset(cHandle){
+
+    return DllCall("libcurl\curl_easy_reset", "UInt", cHandle, "CDecl")
+}
+
+/*ƒ
+    Function: Easy_StrError
+    Return string describing error code.
+
+    The *Easy_StrError()* function returns a string describing the CURLcode error code passed in the argument
+    ErrCode.
+
+    See: <http://curl.haxx.se/libcurl/c/curl_easy_strerror.html>
+
+    Parameters:
+    > cURL_Easy_StrError(ErrCode)
+
+    ErrCode     -   CURLE code returned by any of the cURL functions.
+
+    Returns:
+    A pointer to a zero terminated string.
+*/
+cURL_Easy_StrError(ErrCode){
+
+    return DllCall("libcurl\curl_easy_strerror", "UInt", ErrCode, "AStr")
+}
+
+/*ƒ
+    Function: Easy_Escape
+    URL encodes the given string.
+
+    This function converts the given input string to an URL encoded string and returns that as a new allocated
+    string. All input characters that are not a-z, A-Z or 0-9 are converted to their "URL escaped" version (%NN
+    where NN is a two-digit hexadecimal number).
+
+    You must <Free()> the returned string when you're done with it.
+
+    See: <http://curl.haxx.se/libcurl/c/curl_easy_escape.html>
+
+    Parameters:
+    > cURL_Easy_Escape(cHandle, URL[, uLen])
+
+    cHandle     -   CURL handle.
+    URL         -   String you wish to convert to its "URL escaped" version (%NN where NN is two hex numbers).
+    uLen        -   Length of the string passed. If not given the function uses *StrLen()* to determine the size.
+
+    Returns:
+    A pointer to a zero terminated string or *NULL* if it failed.
+
+    Availability:
+    Added in 7.15.4 and replaces the old curl_escape(3) function.
+*/
+cURL_Easy_Escape(cHandle, URL, uLen=0){
+    
+    return strGet(DllCall("libcurl\curl_easy_escape"
+                         ,"UInt", cHandle
+                         , a_isunicode ? "AStr" : "Str" , URL
+                         ,"UInt", uLen ? uLen : StrLen(URL), "CDecl"), "CP0")
+}
+
+/*ƒ
+    Function: Easy_UnEscape
+    URL decodes the given string.
+
+    This function converts the given URL encoded input string to a "plain string" and returns that in an allocated
+    memory area. All input characters that are URL encoded (%NN where NN is a two-digit hexadecimal number) are
+    converted to their binary versions.
+
+    If outlength is non-*NULL*, the function will write the length of the returned string in the integer it points
+    to. This allows an escaped string containing %00 to still get used properly after unescaping.
+
+    You must <Free()> the returned string when you're done with it.
+
+    See: <http://curl.haxx.se/libcurl/c/curl_easy_unescape.html>
+
+    Parameters:
+    > cURL_Easy_UnEscape(cHandle, URL[, iLen, oLen])
+
+    cHandle     -   CURL handle.
+    URL         -   String you wish to convert to its "plain text" version.
+    iLen        -   Length of the string passed. If not given the function uses *StrLen()* to determine the size.
+    oLen        -   if this variable is not *NULL*, the function will write the length of the returned string in
+                    the integer it points to. This allows an escaped string containing %00 to still get used
+                    properly after unescaping.
+
+    Returns:
+    A pointer to a zero terminated string or *NULL* if it failed.
+
+    Availability:
+    Added in 7.15.4 and replaces the old curl_unescape(3) function.
+*/
+cURL_Easy_UnEscape(cHandle, URL, iLen=0, Byref oLen=0){
+
+    return strGet(DllCall("libcurl\curl_easy_unescape"
+                         ,"UInt", cHandle
+                         , a_isunicode ? "AStr" : "Str" , URL
+                         ,"UInt", uLen ? uLen : StrLen(URL)
+                         ,"UInt*",oLen, "CDecl"), "CP0")
 }
 
 ; **********************************[ File Management Functions ]***********************************
 
-cURL_CreateFile( sFile
-                ,tCreate="CREATE_NEW"
-                ,tAccess="GENERIC_RW"
-                ,tShare="FILE_SHARE_READ"
-                ,tFlags="FILE_ATTRIBUTE_NORMAL" ){
+/*ƒ
+*/
+cURL_CreateFile(sFile
+               ,tCreate="CREATE_ALWAYS"
+               ,tAccess="GENERIC_RW"
+               ,tShare="FILE_SHARE_READ"
+               ,tFlags="FILE_ATTRIBUTE_NORMAL"){
 
     static st:="Create,Access,Share,Flags"
-    
+
     Loop, Parse, st, `,
     {
         extLoopField:=a_loopfield, %extLoopField%:=0
         Loop, Parse, t%a_loopfield%, %a_tab%%a_space%, %a_tab%%a_space%
             %extLoopField% |= FILE(a_loopfield)
     }
-    
+
     return DllCall("CreateFile"
                   ,"Uint" ,&sFile
                   ,"UInt" ,Access
@@ -475,6 +992,8 @@ cURL_CreateFile( sFile
                   ,"UInt" ,0)
 }
 
+/*ƒ
+*/
 cURL_ReadFile(ptr, size, nmemb, hFile){
 
     DllCall("ReadFile"
@@ -483,10 +1002,12 @@ cURL_ReadFile(ptr, size, nmemb, hFile){
            ,"UInt" ,size*nmemb
            ,"UInt*",tRead
            ,"UInt" ,0)
-    
+
     return tRead
 }
 
+/*ƒ
+*/
 cURL_WriteFile(ptr, size, nmemb, hFile){
 
     DllCall("WriteFile"
@@ -495,35 +1016,25 @@ cURL_WriteFile(ptr, size, nmemb, hFile){
            ,"UInt" ,size*nmemb
            ,"UInt*",tWritten
            ,"UInt" ,0)
-    
+
     return tWritten
 }
 
+/*ƒ
+*/
 cURL_CloseHandle(fHandle){
 
     return DllCall("CloseHandle"
                   ,"Uint" ,fHandle)
 }
 
-cURL_Debug(cHandle, infotype, ptr, size, void){
+/*ƒ
+*/
+cURL_Debug(cHandle, Info, ptr, size, void){
     
-    global stdout
-    /*
-     * This function should be used when using the CURLOPT_VERBOSE option which sends
-     * more information than the normal curl call, i personally prefer this function
-     * most times when i dont need a file to write to.
-     * 
-     * Similarly to cURL_WriteFile, you can write your own function, make sure you register it like:
-	 * curl_easy_setopt(curl, CURLOPT_DEBUGFUNCTION, registercallback("ahk_debug", "C F")) ; register function
-     */
-    
-    if !FileExist(a_temp . "\stdout")
-        hFile := cURL_CreateFile(a_temp . "\stdout", "CREATE_ALWAYS")
-    cURL_WriteFile(ptr, size, 1, hFile)    ; Write file size is size*nmemb... so we use 1 <<
-    cURL_CloseHandle(hFile)
-    
-    FileRead, stdout, %a_temp%\stdout       ; Read temporary file to stdout so we can use the var later on
-    return 0
+    global cURL_Debug
+    static debug
+    cURL_Debug := debug .= strGet(ptr, size+1, "CP0")
 }
 
 ; Function created by DeathByNukes, http://www.autohotkey.com/forum/topic32019.html
@@ -533,15 +1044,15 @@ Curl_ProgressFunction( clientp, dltotal_l, dltotal_h, dlnow_l
                       msgbox true
   VarSetCapacity(dltotal, 8, 0)
   NumPut(dltotal_l, dltotal, 0), NumPut(dltotal_h, dltotal, 4)
- 
+
   VarSetCapacity(dlnow, 8, 0)
   NumPut(dlnow_l, dlnow, 0), NumPut(dlnow_h, dlnow, 4)
- 
+
   KBTotal := Round((NumGet(dltotal, 0, "Double") / 1024), 2)
   KBNow := Round((NumGet(dlnow, 0, "Double") / 1024), 2)
   Percent := Round((NumGet(dlnow, 0, "Double") / NumGet(dltotal, 0, "Double") * 100), 2)
   Progress, %Percent%, %KBNow% of %KBTotal% KB (%Percent% `%)
- 
+
   Return 0
 }
 
@@ -549,9 +1060,9 @@ Curl_ProgressFunction( clientp, dltotal_l, dltotal_h, dlnow_l
 
 CURL(var, val=""){
     static
-    
+
     ; Assigning Constants
-    
+
     CURL_GLOBAL_SSL                   := (1<<0)
     CURL_GLOBAL_WIN32                 := (1<<1)
     CURL_GLOBAL_ALL                   := (CURL_GLOBAL_SSL|CURL_GLOBAL_WIN32)
@@ -566,20 +1077,20 @@ CURL(var, val=""){
     CURLVERSION_THIRD                 := 3
     CURLVERSION_FOURTH                := 4
     CURLVERSION_NOW                   := CURLVERSION_FOURTH
-    CURL_VERSION_IPV6                 := (1<<0)     ; IPv6-enabled 
-    CURL_VERSION_KERBEROS4            := (1<<1)     ; Kerberos auth is supported 
-    CURL_VERSION_SSL                  := (1<<2)     ; SSL options are present 
-    CURL_VERSION_LIBZ                 := (1<<3)     ; Libz features are present 
-    CURL_VERSION_NTLM                 := (1<<4)     ; NTLM auth is supported 
-    CURL_VERSION_GSSNEGOTIATE         := (1<<5)     ; Negotiate auth support 
-    CURL_VERSION_DEBUG                := (1<<6)     ; Built with debug capabilities 
-    CURL_VERSION_ASYNCHDNS            := (1<<7)     ; Asynchronous dns resolves 
-    CURL_VERSION_SPNEGO               := (1<<8)     ; SPNEGO auth 
-    CURL_VERSION_LARGEFILE            := (1<<9)     ; Supports files bigger than 2GB 
-    CURL_VERSION_IDN                  := (1<<10)    ; International Domain Names support 
-    CURL_VERSION_SSPI                 := (1<<11)    ; SSPI is supported 
-    CURL_VERSION_CONV                 := (1<<12)    ; Character conversions supported 
-    CURL_VERSION_CURLDEBUG            := 14         ; Debug memory tracking supported 
+    CURL_VERSION_IPV6                 := (1<<0)     ; IPv6-enabled
+    CURL_VERSION_KERBEROS4            := (1<<1)     ; Kerberos auth is supported
+    CURL_VERSION_SSL                  := (1<<2)     ; SSL options are present
+    CURL_VERSION_LIBZ                 := (1<<3)     ; Libz features are present
+    CURL_VERSION_NTLM                 := (1<<4)     ; NTLM auth is supported
+    CURL_VERSION_GSSNEGOTIATE         := (1<<5)     ; Negotiate auth support
+    CURL_VERSION_DEBUG                := (1<<6)     ; Built with debug capabilities
+    CURL_VERSION_ASYNCHDNS            := (1<<7)     ; Asynchronous dns resolves
+    CURL_VERSION_SPNEGO               := (1<<8)     ; SPNEGO auth
+    CURL_VERSION_LARGEFILE            := (1<<9)     ; Supports files bigger than 2GB
+    CURL_VERSION_IDN                  := (1<<10)    ; International Domain Names support
+    CURL_VERSION_SSPI                 := (1<<11)    ; SSPI is supported
+    CURL_VERSION_CONV                 := (1<<12)    ; Character conversions supported
+    CURL_VERSION_CURLDEBUG            := 14         ; Debug memory tracking supported
 
     ; ************[CURLFORM]************
     CURLFORM_COPYNAME                 := 1
@@ -604,10 +1115,10 @@ CURL(var, val=""){
     CURLOPTTYPE_OBJECTPOINT           := 10000
     CURLOPTTYPE_FUNCTIONPOINT         := 20000
     CURLOPTTYPE_OFF_T                 := 30000
-    
+
     CURLOPT_FILE                      := 10001      ; 1   + CURLOPTTYPE_OBJECTPOINT
     CURLOPT_URL                       := 10002      ; 2   + CURLOPTTYPE_OBJECTPOINT
-    
+
     CURLOPT_WRITEDATA                 := CURLOPT_FILE
     CURLOPT_PORT                      := 3          ; 3   + CURLOPTTYPE_LONG
     CURLOPT_PROXY                     := 10004      ; 4   + CURLOPTTYPE_OBJECTPOINT
@@ -754,7 +1265,7 @@ CURL(var, val=""){
     CURLOPT_OPENSOCKETFUNCTION        := 20163      ; 163 + CURLOPTTYPE_FUNCTIONPOINT
     CURLOPT_OPENSOCKETDATA            := 10164      ; 164 + CURLOPTTYPE_OBJECTPOINT
     CURLOPT_COPYPOSTFIELDS            := 10165      ; 165 + CURLOPTTYPE_OBJECTPOINT
-    
+
     ; ************[CURLINFO]************
     CURLINFO_STRING                   := 0x100000
     CURLINFO_LONG                     := 0x200000
@@ -791,7 +1302,7 @@ CURL(var, val=""){
     CURLINFO_COOKIELIST               := 4194332    ; CURLINFO_SLIST  + 28
     CURLINFO_LASTSOCKET               := 2097181    ; CURLINFO_LONG   + 29
     CURLINFO_FTP_ENTRY_PATH           := 1048606    ; CURLINFO_STRING + 30
-    
+
     ; ************[CURLPAUSE]***********
     CURLPAUSE_RECV                    := (1<<0)
     CURLPAUSE_RECV_CONT               := (0)
@@ -801,7 +1312,7 @@ CURL(var, val=""){
     CURLPAUSE_CONT                    := (CURLPAUSE_RECV_CONT | CURLPAUSE_SEND_CONT)
     CURL_READFUNC_PAUSE               := 0x10000001
     CURL_WRITEFUNC_PAUSE              := 0x10000001
-    
+
     ; ************[CURLE]***************
     CURLE_OK                          := 0
     CURLE_UNSUPPORTED_PROTOCOL        := 1
@@ -814,7 +1325,7 @@ CURL(var, val=""){
     CURLE_FTP_WEIRD_SERVER_REPLY      := 8
     CURLE_REMOTE_ACCESS_DENIED        := 9          ; A service was denied by the server
                                                     ; due to lack of access - when login fails
-                                                    ; this is not returned.     
+                                                    ; this is not returned.
     CURLE_OBSOLETE10                  := 10         ; NOT USED
     CURLE_FTP_WEIRD_PASS_REPLY        := 11
     CURLE_OBSOLETE12                  := 12         ; NOT USED
@@ -832,81 +1343,81 @@ CURL(var, val=""){
     CURLE_OBSOLETE24                  := 24         ; NOT USED
     CURLE_UPLOAD_FAILED               := 25         ; failed upload "command"
     CURLE_READ_ERROR                  := 26         ; couldn't open/read from file
-    CURLE_OUT_OF_MEMORY               := 27         ; Note: CURLE_OUT_OF_MEMORY may 
+    CURLE_OUT_OF_MEMORY               := 27         ; Note: CURLE_OUT_OF_MEMORY may
                                                     ; sometimes indicate a conversion error
                                                     ; instead of a memory allocation error
                                                     ; if CURL_DOES_CONVERSIONS is defined
     CURLE_OPERATION_TIMEDOUT          := 28         ; the timeout time was reached
     CURLE_OBSOLETE29                  := 29         ; NOT USED
     CURLE_FTP_PORT_FAILED             := 30         ; FTP PORT operation failed
-    CURLE_FTP_COULDNT_USE_REST        := 31         ; the REST command failed 
-    CURLE_OBSOLETE32                  := 32         ; NOT USED 
-    CURLE_RANGE_ERROR                 := 33         ; RANGE "command" didn't work 
-    CURLE_HTTP_POST_ERROR             := 34 
-    CURLE_SSL_CONNECT_ERROR           := 35         ; wrong when connecting with SSL 
-    CURLE_BAD_DOWNLOAD_RESUME         := 36         ; couldn't resume download 
-    CURLE_FILE_COULDNT_READ_FILE      := 37 
-    CURLE_LDAP_CANNOT_BIND            := 38 
-    CURLE_LDAP_SEARCH_FAILED          := 39 
-    CURLE_OBSOLETE40                  := 40         ; NOT USED 
-    CURLE_FUNCTION_NOT_FOUND          := 41 
-    CURLE_ABORTED_BY_CALLBACK         := 42 
-    CURLE_BAD_FUNCTION_ARGUMENT       := 43 
-    CURLE_OBSOLETE44                  := 44         ; NOT USED 
-    CURLE_INTERFACE_FAILED            := 45         ; CURLOPT_INTERFACE failed 
-    CURLE_OBSOLETE46                  := 46         ; NOT USED 
-    CURLE_TOO_MANY_REDIRECTS          := 47         ; catch endless redirect loops 
-    CURLE_UNKNOWN_TELNET_OPTION       := 48         ; User specified an unknown option 
-    CURLE_TELNET_OPTION_SYNTAX        := 49         ; Malformed telnet option 
-    CURLE_OBSOLETE50                  := 50         ; NOT USED 
+    CURLE_FTP_COULDNT_USE_REST        := 31         ; the REST command failed
+    CURLE_OBSOLETE32                  := 32         ; NOT USED
+    CURLE_RANGE_ERROR                 := 33         ; RANGE "command" didn't work
+    CURLE_HTTP_POST_ERROR             := 34
+    CURLE_SSL_CONNECT_ERROR           := 35         ; wrong when connecting with SSL
+    CURLE_BAD_DOWNLOAD_RESUME         := 36         ; couldn't resume download
+    CURLE_FILE_COULDNT_READ_FILE      := 37
+    CURLE_LDAP_CANNOT_BIND            := 38
+    CURLE_LDAP_SEARCH_FAILED          := 39
+    CURLE_OBSOLETE40                  := 40         ; NOT USED
+    CURLE_FUNCTION_NOT_FOUND          := 41
+    CURLE_ABORTED_BY_CALLBACK         := 42
+    CURLE_BAD_FUNCTION_ARGUMENT       := 43
+    CURLE_OBSOLETE44                  := 44         ; NOT USED
+    CURLE_INTERFACE_FAILED            := 45         ; CURLOPT_INTERFACE failed
+    CURLE_OBSOLETE46                  := 46         ; NOT USED
+    CURLE_TOO_MANY_REDIRECTS          := 47         ; catch endless redirect loops
+    CURLE_UNKNOWN_TELNET_OPTION       := 48         ; User specified an unknown option
+    CURLE_TELNET_OPTION_SYNTAX        := 49         ; Malformed telnet option
+    CURLE_OBSOLETE50                  := 50         ; NOT USED
     CURLE_PEER_FAILED_VERIFICATION    := 51         ; peer's certificate or fingerprint wasn't verified correctly
-    CURLE_GOT_NOTHING                 := 52         ; when this is a specific error 
-    CURLE_SSL_ENGINE_NOTFOUND         := 53         ; SSL crypto engine not found 
+    CURLE_GOT_NOTHING                 := 52         ; when this is a specific error
+    CURLE_SSL_ENGINE_NOTFOUND         := 53         ; SSL crypto engine not found
     CURLE_SSL_ENGINE_SETFAILED        := 54         ; can not set SSL crypto engine as
-                                                    ; default 
-    CURLE_SEND_ERROR                  := 55         ; failed sending network data 
-    CURLE_RECV_ERROR                  := 56         ; failure in receiving network data 
-    CURLE_OBSOLETE57                  := 57         ; NOT IN USE 
-    CURLE_SSL_CERTPROBLEM             := 58         ; problem with the local certificate 
-    CURLE_SSL_CIPHER                  := 59         ; couldn't use specified cipher 
-    CURLE_SSL_CACERT                  := 60         ; problem with the CA cert (path?) 
-    CURLE_BAD_CONTENT_ENCODING        := 61         ; Unrecognized transfer encoding 
-    CURLE_LDAP_INVALID_URL            := 62         ; Invalid LDAP URL 
-    CURLE_FILESIZE_EXCEEDED           := 63         ; Maximum file size exceeded 
-    CURLE_USE_SSL_FAILED              := 64         ; Requested FTP SSL level failed 
+                                                    ; default
+    CURLE_SEND_ERROR                  := 55         ; failed sending network data
+    CURLE_RECV_ERROR                  := 56         ; failure in receiving network data
+    CURLE_OBSOLETE57                  := 57         ; NOT IN USE
+    CURLE_SSL_CERTPROBLEM             := 58         ; problem with the local certificate
+    CURLE_SSL_CIPHER                  := 59         ; couldn't use specified cipher
+    CURLE_SSL_CACERT                  := 60         ; problem with the CA cert (path?)
+    CURLE_BAD_CONTENT_ENCODING        := 61         ; Unrecognized transfer encoding
+    CURLE_LDAP_INVALID_URL            := 62         ; Invalid LDAP URL
+    CURLE_FILESIZE_EXCEEDED           := 63         ; Maximum file size exceeded
+    CURLE_USE_SSL_FAILED              := 64         ; Requested FTP SSL level failed
     CURLE_SEND_FAIL_REWIND            := 65         ; Sending the data requires a rewind
-                                                    ; that failed 
-    CURLE_SSL_ENGINE_INITFAILED       := 66         ; failed to initialise ENGINE 
+                                                    ; that failed
+    CURLE_SSL_ENGINE_INITFAILED       := 66         ; failed to initialise ENGINE
     CURLE_LOGIN_DENIED                := 67         ; user, password or similar was not
-                                                    ; accepted and we failed to login 
-    CURLE_TFTP_NOTFOUND               := 68         ; file not found on server 
-    CURLE_TFTP_PERM                   := 69         ; permission problem on server 
-    CURLE_REMOTE_DISK_FULL            := 70         ; out of disk space on server 
-    CURLE_TFTP_ILLEGAL                := 71         ; Illegal TFTP operation 
-    CURLE_TFTP_UNKNOWNID              := 72         ; Unknown transfer ID 
-    CURLE_REMOTE_FILE_EXISTS          := 73         ; File already exists 
-    CURLE_TFTP_NOSUCHUSER             := 74         ; No such user 
-    CURLE_CONV_FAILED                 := 75         ; conversion failed 
+                                                    ; accepted and we failed to login
+    CURLE_TFTP_NOTFOUND               := 68         ; file not found on server
+    CURLE_TFTP_PERM                   := 69         ; permission problem on server
+    CURLE_REMOTE_DISK_FULL            := 70         ; out of disk space on server
+    CURLE_TFTP_ILLEGAL                := 71         ; Illegal TFTP operation
+    CURLE_TFTP_UNKNOWNID              := 72         ; Unknown transfer ID
+    CURLE_REMOTE_FILE_EXISTS          := 73         ; File already exists
+    CURLE_TFTP_NOSUCHUSER             := 74         ; No such user
+    CURLE_CONV_FAILED                 := 75         ; conversion failed
     CURLE_CONV_REQD                   := 76         ; caller must register conversion
                                                     ; callbacks using curl_easy_setopt options
                                                     ; CURLOPT_CONV_FROM_NETWORK_FUNCTION,
                                                     ; CURLOPT_CONV_TO_NETWORK_FUNCTION, and
                                                     ; CURLOPT_CONV_FROM_UTF8_FUNCTION
-    CURLE_SSL_CACERT_BADFILE          := 77         ; could not load CACERT file, missing or wrong format 
-    CURLE_REMOTE_FILE_NOT_FOUND       := 78         ; remote file not found 
+    CURLE_SSL_CACERT_BADFILE          := 77         ; could not load CACERT file, missing or wrong format
+    CURLE_REMOTE_FILE_NOT_FOUND       := 78         ; remote file not found
     CURLE_SSH                         := 79         ; error from the SSH layer, somewhat
                                                     ; generic so the error message will be of
-                                                    ; interest when this has happened 
-    CURLE_SSL_SHUTDOWN_FAILED         := 80         ; Failed to shut down the SSL connection 
+                                                    ; interest when this has happened
+    CURLE_SSL_SHUTDOWN_FAILED         := 80         ; Failed to shut down the SSL connection
     CURLE_AGAIN                       := 81         ; socket is not ready for send/recv,
-                                                    ; wait till it's ready and try again (Added in 7.18.2) 
-    CURLE_SSL_CRL_BADFILE             := 82         ; could not load CRL file, 
+                                                    ; wait till it's ready and try again (Added in 7.18.2)
+    CURLE_SSL_CRL_BADFILE             := 82         ; could not load CRL file,
                                                     ; missing or wrong format (Added in 7.19.0)
-    CURLE_SSL_ISSUER_ERROR            := 83         ; Issuer check failed.  (Added in 7.19.0) 
-    CURLE_FTP_PRET_FAILED             := 84         ; a PRET command failed 
-    CURLE_RTSP_CSEQ_ERROR             := 85         ; mismatch of RTSP CSeq numbers 
-    CURLE_RTSP_SESSION_ERROR          := 86         ; mismatch of RTSP Session Identifiers 
-    CURLE_FTP_BAD_FILE_LIST           := 87         ; unable to parse FTP file list 
+    CURLE_SSL_ISSUER_ERROR            := 83         ; Issuer check failed.  (Added in 7.19.0)
+    CURLE_FTP_PRET_FAILED             := 84         ; a PRET command failed
+    CURLE_RTSP_CSEQ_ERROR             := 85         ; mismatch of RTSP CSeq numbers
+    CURLE_RTSP_SESSION_ERROR          := 86         ; mismatch of RTSP Session Identifiers
+    CURLE_FTP_BAD_FILE_LIST           := 87         ; unable to parse FTP file list
     CURLE_CHUNK_FAILED                := 88         ; chunk callback reported error
 
 	lvar := %var%, val != "" ? %var% := val
@@ -915,33 +1426,33 @@ CURL(var, val=""){
 
 FILE(var, val=""){
     static
-    
+
     ; File Helper Constants
     ; tCreate
-    
+
     CREATE_NEW                        := 1
     CREATE_ALWAYS                     := 2
     OPEN_EXISTING                     := 3
     OPEN_ALWAYS                       := 4
     TRUNCATE_EXISTING                 := 5
-    
+
     ; tAccess
-    
+
     GENERIC_READ                      := 0x80000000
     GENERIC_WRITE                     := 0x40000000
     GENERIC_RW                        := (GENERIC_READ | GENERIC_WRITE)
     GENERIC_EXECUTE                   := 0x20000000
     GENERIC_ALL                       := 0x10000000
-    
+
     ; tShare
-    
+
     FILE_SHARE_READ                   := 0x00000001
     FILE_SHARE_WRITE                  := 0x00000002
     FILE_SHARE_DELETE                 := 0x00000004
     FILE_SHARE_ALL                    := 0x00000007
-    
+
     ; tFlags
-    
+
     FILE_ATTRIBUTE_ARCHIVE            := 0x20
     FILE_ATTRIBUTE_ENCRYPTED          := 0x4000
     FILE_ATTRIBUTE_HIDDEN             := 0x2
@@ -950,7 +1461,7 @@ FILE(var, val=""){
     FILE_ATTRIBUTE_READONLY           := 0x1
     FILE_ATTRIBUTE_SYSTEM             := 0x4
     FILE_ATTRIBUTE_TEMPORARY          := 0x100
-    
+
     FILE_FLAG_BACKUP_SEMANTICS        := 0x02000000
     FILE_FLAG_DELETE_ON_CLOSE         := 0x04000000
     FILE_FLAG_NO_BUFFERING            := 0x20000000
