@@ -614,11 +614,17 @@ cURL_Easy_DupHandle(cHandle){
 */
 cURL_Easy_SetOpt(cHandle, Option, Param){
 
-        a_isunicode ? (VarSetCapacity(ParamA, StrPut(Param, "CP0")), StrPut(Param, &ParamA, "CP0"))
+        ; if (a_isunicode && Option="CURLOPT_POSTFIELDS")
+        ; {
+            ; VarSetCapacity(ParamA, StrPut(strGet(Param)+1, "CP0")),StrPut("test", &ParamA, "CP0")
+            ; Param := &ParamA
+        ; }
+        
         return DllCall("libcurl\curl_easy_setopt"
                       ,"UInt" ,cHandle
                       ,"UInt" ,CURL(Option)
-                      ,Param+0 ? "UInt" : "Str",(a_isunicode && Param+0="") ? ParamA : Param, "CDecl")
+                      ,Param+0 ? "UInt" : "AStr", Param, "CDecl")
+                  
 }
 
 /*ƒ
@@ -916,11 +922,11 @@ cURL_Easy_StrError(ErrCode){
     Added in 7.15.4 and replaces the old curl_escape(3) function.
 */
 cURL_Easy_Escape(cHandle, URL, uLen=0){
-    
-    return strGet(DllCall("libcurl\curl_easy_escape"
-                         ,"UInt", cHandle
-                         , a_isunicode ? "AStr" : "Str" , URL
-                         ,"UInt", uLen ? uLen : StrLen(URL), "CDecl"), "CP0")
+
+    return DllCall("libcurl\curl_easy_escape"
+                  ,"UInt", cHandle
+                  ,"AStr", URL
+                  ,"UInt", uLen ? uLen : StrLen(URL)+1, "CDecl")
 }
 
 /*ƒ
@@ -956,11 +962,11 @@ cURL_Easy_Escape(cHandle, URL, uLen=0){
 */
 cURL_Easy_UnEscape(cHandle, URL, iLen=0, Byref oLen=0){
 
-    return strGet(DllCall("libcurl\curl_easy_unescape"
-                         ,"UInt", cHandle
-                         , a_isunicode ? "AStr" : "Str" , URL
-                         ,"UInt", uLen ? uLen : StrLen(URL)
-                         ,"UInt*",oLen, "CDecl"), "CP0")
+    return DllCall("libcurl\curl_easy_unescape"
+                  ,"UInt" , cHandle
+                  ,"AStr" , URL
+                  ,"UInt" , uLen ? uLen : StrLen(URL)+1
+                  ,"UInt*", oLen, "CDecl")
 }
 
 ; **********************************[ File Management Functions ]***********************************
