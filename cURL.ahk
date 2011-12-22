@@ -49,7 +49,7 @@ cURL_Global_Init(DllPath="", Flags="CURL_GLOBAL_DEFAULT"){
 
     DllPath := !DllPath ? "libcurl.dll" : inStr(DllPath, "libcurl.dll") ? DllPath : DllPath "\libcurl.dll"
 	if !hCurlModule:=DllCall("LoadLibrary", "Str", DllPath)
-		return A_ThisFunc "> Could not load library: " DllPath
+		return "`n" A_ThisFunc "> Could not load library: """ DllPath """"
 
     ; Initialize the program environment
 	return DllCall("libcurl\curl_global_init", "UInt", CURL(Flags), "CDecl")
@@ -564,7 +564,7 @@ cURL_Easy_DupHandle(cHandle){
     return DllCall("libcurl\curl_easy_duphandle", "UInt", cHandle, "CDecl")
 }
 
-/*ƒ
+/*
     Function: Easy_SetOpt
     Set options for a curl easy handle.
 
@@ -614,11 +614,11 @@ cURL_Easy_DupHandle(cHandle){
 */
 cURL_Easy_SetOpt(cHandle, Option, Param){
 
-        ; if (a_isunicode && Option="CURLOPT_POSTFIELDS")
-        ; {
-            ; VarSetCapacity(ParamA, StrPut(strGet(Param)+1, "CP0")),StrPut("test", &ParamA, "CP0")
-            ; Param := &ParamA
-        ; }
+        if (a_isunicode && Option="CURLOPT_POSTFIELDS")
+        {
+            VarSetCapacity(ParamW, StrPut(strGet(Param), "UTF-8")),StrPut(strGet(Param), &ParamW, "UTF-8")
+            Param := &ParamW ; AHK_L Unicode uses UTF-16 encoding. We format it down to UTF-8 which is more common.
+        }
         
         return DllCall("libcurl\curl_easy_setopt"
                       ,"UInt" ,cHandle
