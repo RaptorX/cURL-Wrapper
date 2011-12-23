@@ -31,18 +31,22 @@ if curl := curl_easy_init(){
         ; .  "&poster=RaptorX"
         ; .  "&hold="
         
+    curl_easy_setopt(curl, "CURLOPT_VERBOSE", true)
+    curl_easy_setopt(curl, "CURLOPT_DEBUGFUNCTION", RegisterCallBack("curl_Debug"))
 
     curl_easy_setopt(curl, "CURLOPT_URL", URL)
     curl_easy_setopt(curl, "CURLOPT_USERAGENT", "AHK-TK")
     curl_easy_setopt(curl, "CURLOPT_POST", true)
     curl_easy_setopt(curl, "CURLOPT_POSTFIELDS", &POST)
     curl_easy_setopt(curl, "CURLOPT_POSTFIELDSIZE", strlen(POST))
-    curl_easy_setopt(curl, "CURLOPT_VERBOSE", true)
-    curl_easy_setopt(curl, "CURLOPT_DEBUGFUNCTION", RegisterCallBack("curl_Debug"))
-    curl_easy_perform(curl)
+    
+    if res := curl_easy_perform(curl)
+        msgbox % curl_easy_strerror(res)
+
     curl_easy_cleanup(curl)
 }
 curl_global_cleanup()
+
 gui, add, edit, w800 h400, % curl_Debug
 gui, show
 return

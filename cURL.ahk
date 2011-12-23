@@ -258,20 +258,24 @@ cURL_Version_Info(vAge){
     *CURLE_OK* (zero) means everything was ok, non-zero means an error occurred corresponding to a *CURL_FORMADD_**
     constant defined in <curl/curl.h>
 */
-cURL_FormAdd(Byref fPost, Byref lPost, Params){
+cURL_FormAdd(fPost=0, lPost=0, Params*){
+    
+    (!fpost || !lpost) ? (VarSetCapacity(fpost, 52, 0),VarSetCapacity(lpost, 52, 0)) ; 52 is the size of the curl_httppost struct
 
-    `(!fpost || !lpost) ? (VarSetCapacity(fpost, 4, 0), VarSetCapacity(lpost, 4, 0))
-    Loop, parse, params, `,
-        mod(a_index, 2) ? Fopt%a_index%:=CURL(a_loopfield) : Fval%a_index%:=a_loopfield
-
-    return DllCall("libcurl\curl_formadd"
-                  ,"UInt*",fpost
-                  ,"UInt*",lpost
-                  ,"UInt" ,%Fopt1% ,"Str" ,Fval2
-                  ,"UInt" ,%Fopt3% ,"Str" ,Fval4
-                  ,"UInt" ,%Fopt5% ,"Str" ,Fval6
-                  ,"UInt" ,%Fopt7% ,"Str" ,Fval8
-                  ,"UInt" ,%Fopt9% ,"Str" ,Fval10, CDecl)
+    msgbox % &Params[1]
+    ; for i, obj in params
+    ; {
+        ; t := obj = "CURLFORM_COPYCONTENTS" ? (Params[i+1]:=&Params[i+1]) : "AStr"
+        ; msgbox % t " " Params[i+1]
+    ; }
+    ; return DllCall("libcurl\curl_formadd"
+                  ; ,"UInt*",&fpost
+                  ; ,"UInt*",&lpost
+                  ; ,"UInt" ,CURL(Params[1]) ,"AStr" ,Params[2]
+                  ; ,"UInt" ,CURL(Params[3]) ,"AStr" ,Params[4]
+                  ; ,"UInt" ,CURL(Params[5]) ,"AStr" ,Params[6]
+                  ; ,"UInt" ,CURL(Params[7]) ,"AStr" ,Params[8]
+                  ; ,"UInt" ,CURL(Params[9]) ,"CDecl")
 
 }
 
