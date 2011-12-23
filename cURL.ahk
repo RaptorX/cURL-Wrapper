@@ -292,9 +292,9 @@ cURL_FormAdd(Byref fPost, Byref lPost, Params){
     Returns:
     Nothing is returned by this function.
 */
-cURL_FormFree(Byref fPost){
+cURL_FormFree(fPost){
 
-    return DllCall("libcurl\curl_formfree", "UInt*", fPost, "Cdecl")
+    return DllCall("libcurl\curl_formfree", "UInt", fPost, "Cdecl")
 }
 
 /**
@@ -309,9 +309,9 @@ cURL_FormFree(Byref fPost){
     Returns:
     Nothing is returned by this function.
 */
-cURL_Free(Byref pStr){
+cURL_Free(pStr){
 
-    return DllCall("libcurl\curl_free", "UInt*", pStr, "Cdecl")
+    return DllCall("libcurl\curl_free", "UInt", pStr, "Cdecl")
 }
 
 /*ƒ
